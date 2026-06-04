@@ -1,0 +1,7 @@
+Logo principal do app: logo.svg (vetorial, nítida, cores índigo + esmeralda)
+
+Para trocar pela sua arte em foto:
+  npm run logo:prepare -- caminho/da/sua-logo.png
+(gera logo.png; para usar no app, altere BRAND_LOGO_URL em src/config/brand.ts)
+
+Recarregue com Ctrl+F5 após qualquer troca.

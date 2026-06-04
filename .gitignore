@@ -8,13 +8,23 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+vendor/
 dist
 dist-ssr
 *.local
+.env
+.env.*
+!.env.example
 
-# Editor directories and files
+# Maestro — memória de sessão (local)
+.memory/
+opencode.json
+.ignore
+
+# Editor / IDE local
 .vscode/*
 !.vscode/extensions.json
+.cursor/
 .idea
 .DS_Store
 *.suo

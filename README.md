@@ -1,4 +1,38 @@
-# React + TypeScript + Vite
+# DABLIU
+
+Sistema de gestão de layouts, produção, ponto e insumos (React + Vite + TypeScript).
+
+## Desenvolvimento
+
+```bash
+npm install
+npm run dev
+```
+
+Abre em **http://localhost:3000/**
+
+## Publicar (GitHub + Vercel)
+
+Passo a passo completo: **[docs/DEPLOY-GITHUB-VERCEL.md](docs/DEPLOY-GITHUB-VERCEL.md)**
+
+Resumo: suba o repo no GitHub → importe na Vercel → configure `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` → ajuste URLs no Supabase Auth.
+
+## Agentes (Cursor)
+
+- **AGENTS.md** — instruções para o agente neste repo
+- **Agent Skills** — `vendor/agent-skills/` ([addyosmani/agent-skills](https://github.com/addyosmani/agent-skills)), modo ativo via `.cursor/rules/`
+- Documentação: `docs/ADDY-AGENT-SKILLS.md`
+- Atualizar skills: `powershell scripts/update-agent-skills.ps1`
+
+## Docs
+
+- **`CHANGELOG.md`** — log enumerado de alterações (`CHG-NNN`) para triagem de bugs
+- `docs/FEATURE-MAP.md` — funcionalidades
+- `docs/DATABASE.md` — Supabase
+
+---
+
+# React + TypeScript + Vite (template)
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 

@@ -7,13 +7,21 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "seed:auth": "node scripts/seed-supabase-auth.mjs",
+    "setup:cloud": "node scripts/setup-cloud.mjs",
+    "configurar": "node scripts/configurar-supabase.mjs",
+    "logo:prepare": "node scripts/prepare-brand-logo.mjs"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.106.2",
     "lucide-react": "^1.16.0",
+    "pdf-lib": "^1.17.1",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "react-router-dom": "^7.15.1"
+    "react-hook-form": "^7.76.1",
+    "react-router-dom": "^7.15.1",
+    "recharts": "^3.8.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -26,7 +34,9 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.6.0",
+    "pg": "^8.16.0",
     "postcss": "^8.5.15",
+    "sharp": "^0.33.5",
     "tailwindcss": "^3.4.19",
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.59.2",
