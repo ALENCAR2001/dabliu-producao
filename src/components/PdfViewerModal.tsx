@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ExternalLink, Loader2, X } from 'lucide-react'
+import { copyBytes, renderPdfToContainer } from '../utils/pdfJsViewer'
 
 type PdfViewerModalProps = {
   open: boolean
@@ -9,51 +10,63 @@ type PdfViewerModalProps = {
 }
 
 export function PdfViewerModal({ open, title, loadPdf, onClose }: PdfViewerModalProps) {
-  const [url, setUrl] = useState<string | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [openUrl, setOpenUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     if (open) return
     void Promise.resolve().then(() => {
-      setUrl(prev => {
+      setOpenUrl(prev => {
         if (prev?.startsWith('blob:')) URL.revokeObjectURL(prev)
         return null
       })
       setError(null)
       setLoading(false)
+      containerRef.current?.replaceChildren()
     })
   }, [open])
 
   useEffect(() => {
     if (!open) return
 
-    let cancelled = false
+    const container = containerRef.current
+    if (!container) return
+
+    const abort = new AbortController()
     let objectUrl: string | null = null
 
     void Promise.resolve().then(async () => {
-      if (cancelled) return
       setLoading(true)
       setError(null)
+      container.replaceChildren()
+
       try {
         const bytes = await loadPdf()
-        if (cancelled) return
+        if (abort.signal.aborted) return
         if (!bytes || bytes.length === 0) {
           setError('PDF não encontrado ou vazio.')
           return
         }
-        const blob = new Blob([new Uint8Array(bytes)], { type: 'application/pdf' })
+
+        const safeBytes = copyBytes(bytes)
+        const blob = new Blob([Uint8Array.from(safeBytes)], { type: 'application/pdf' })
         objectUrl = URL.createObjectURL(blob)
-        setUrl(objectUrl)
+        setOpenUrl(objectUrl)
+
+        await renderPdfToContainer(container, bytes, abort.signal)
       } catch {
-        if (!cancelled) setError('Não foi possível abrir o PDF.')
+        if (!abort.signal.aborted) {
+          setError('Não foi possível abrir o PDF neste dispositivo.')
+        }
       } finally {
-        if (!cancelled) setLoading(false)
+        if (!abort.signal.aborted) setLoading(false)
       }
     })
 
     return () => {
-      cancelled = true
+      abort.abort()
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [open, loadPdf])
@@ -62,45 +75,69 @@ export function PdfViewerModal({ open, title, loadPdf, onClose }: PdfViewerModal
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80"
+      className="modal-sheet z-[60]"
       role="dialog"
       aria-modal="true"
+      onClick={e => {
+        if (e.target === e.currentTarget) onClose()
+      }}
     >
-      <div className="bg-gray-800 w-full max-w-4xl h-[90vh] rounded-xl border border-gray-700 flex flex-col overflow-hidden">
-        <div className="p-4 border-b border-gray-700 flex justify-between items-center gap-2 shrink-0">
-          <h2 className="text-white font-semibold truncate pr-2">{title}</h2>
-          <div className="flex items-center gap-2 shrink-0">
-            {url && (
+      <div className="modal-sheet-panel max-w-4xl sm:m-4 h-[92dvh] sm:h-[90vh] flex flex-col">
+        <div className="p-3 sm:p-4 border-b border-gray-700 flex justify-between items-center gap-2 shrink-0">
+          <h2 className="text-white font-semibold truncate pr-2 text-sm sm:text-base">{title}</h2>
+          <div className="flex items-center gap-1 shrink-0">
+            {openUrl && (
               <a
-                href={url}
+                href={openUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="p-2 text-indigo-300 hover:text-indigo-200 rounded-lg"
+                className="touch-target text-indigo-300 hover:text-indigo-200 rounded-lg px-2 gap-1 text-xs sm:text-sm inline-flex items-center"
                 title="Abrir em nova aba"
               >
-                <ExternalLink size={20} />
+                <ExternalLink size={18} />
+                <span className="hidden sm:inline">Abrir</span>
               </a>
             )}
-            <button type="button" onClick={onClose} className="p-2 text-gray-400 hover:text-white rounded-lg">
+            <button
+              type="button"
+              onClick={onClose}
+              className="touch-target text-gray-400 hover:text-white rounded-lg"
+              aria-label="Fechar"
+            >
               <X size={22} />
             </button>
           </div>
         </div>
-        <div className="flex-1 min-h-0 bg-gray-900">
+
+        <div className="flex-1 min-h-0 bg-gray-900 overflow-y-auto overscroll-contain">
           {loading && (
-            <div className="h-full flex items-center justify-center gap-2 text-gray-400">
+            <div className="h-full min-h-[200px] flex items-center justify-center gap-2 text-gray-400">
               <Loader2 className="animate-spin" size={24} />
               Carregando PDF…
             </div>
           )}
+
           {!loading && error && (
-            <div className="h-full flex flex-col items-center justify-center p-6 text-center text-gray-400 gap-3">
+            <div className="h-full min-h-[200px] flex flex-col items-center justify-center p-6 text-center text-gray-400 gap-4">
               <p>{error}</p>
+              {openUrl && (
+                <a
+                  href={openUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="touch-btn bg-indigo-600 hover:bg-indigo-500 text-white inline-flex items-center gap-2"
+                >
+                  <ExternalLink size={18} />
+                  Abrir PDF em nova aba
+                </a>
+              )}
             </div>
           )}
-          {!loading && !error && url && (
-            <iframe title={title} src={url} className="w-full h-full border-0" />
-          )}
+
+          <div
+            ref={containerRef}
+            className={`p-2 sm:p-3 ${loading || error ? 'hidden' : 'block'}`}
+          />
         </div>
       </div>
     </div>
