@@ -1,6 +1,11 @@
 import type { UserRole } from '../types/auth'
 
-const domain = (import.meta.env.VITE_AUTH_EMAIL_DOMAIN as string | undefined) || 'dabliu.app'
+function sanitizeEnvValue(raw: string | undefined, fallback: string): string {
+  const v = (raw ?? fallback).trim().replace(/^["']|["']$/g, '')
+  return v || fallback
+}
+
+const domain = sanitizeEnvValue(import.meta.env.VITE_AUTH_EMAIL_DOMAIN as string | undefined, 'dabliu.app')
 
 /** E-mail usado no Supabase Auth (login técnico → e-mail). */
 export function loginToAuthEmail(login: string, role: UserRole): string {

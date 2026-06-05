@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, LogIn, User } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { isCloudUserMode, listFuncionariosAsync } from '../../services/userService'
+import { isSupabaseConfigured } from '../../lib/supabase'
 import { cacheFuncionariosRoster, getLastFuncionarioId, loadCachedFuncionariosRoster } from '../../utils/usersStorage'
 import type { SystemUser } from '../../data/users'
 import { BrandLogo } from '../BrandLogo'
@@ -24,6 +25,13 @@ export function FuncionarioQuickLogin({ onBack }: FuncionarioQuickLoginProps) {
 
   useEffect(() => {
     let cancelled = false
+    if (isSupabaseConfigured()) {
+      try {
+        localStorage.removeItem('dabliu-funcionarios-roster-cache')
+      } catch {
+        /* ignore */
+      }
+    }
     void listFuncionariosAsync().then(list => {
       if (cancelled) return
       if (list.length > 0) {

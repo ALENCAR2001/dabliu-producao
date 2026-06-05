@@ -1,7 +1,7 @@
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase'
 import type { AuthSession } from '../types/auth'
 import { loginToAuthEmail, resolveAuthEmail } from '../utils/authEmail'
-import { pinToSupabasePassword } from '../utils/pinAuth'
+import { pinLoginPasswordCandidates, pinToSupabasePassword } from '../utils/pinAuth'
 import type { SystemUser } from '../data/users'
 import type { UserRole } from '../types/auth'
 
@@ -150,13 +150,31 @@ export async function signInFuncionarioByLegacyId(
     return { ok: false, message: 'Funcionário não encontrado.' }
   }
 
-  const email = loginToAuthEmail(row.login, 'funcionario')
-  const { data, error: signError } = await supabase.auth.signInWithPassword({
-    email,
-    password: pinToSupabasePassword(pin.trim()),
-  })
+  const loginSlug = row.login.trim().toLowerCase()
+  const emailCandidates = [
+    loginToAuthEmail(loginSlug, 'funcionario'),
+    `${loginSlug}@dabliu.app`,
+  ]
+  const uniqueEmails = [...new Set(emailCandidates.map(e => e.toLowerCase()))]
+  const passwords = pinLoginPasswordCandidates(pin)
 
-  if (signError) {
+  let data: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['data'] | null = null
+  let signError: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>['error'] | null = null
+
+  for (const email of uniqueEmails) {
+    for (const password of passwords) {
+      const attempt = await supabase.auth.signInWithPassword({ email, password })
+      if (!attempt.error && attempt.data.user) {
+        data = attempt.data
+        signError = null
+        break
+      }
+      signError = attempt.error
+    }
+    if (data?.user) break
+  }
+
+  if (signError || !data?.user) {
     return {
       ok: false,
       message: 'PIN incorreto. Tente de novo ou fale com o administrador.',
