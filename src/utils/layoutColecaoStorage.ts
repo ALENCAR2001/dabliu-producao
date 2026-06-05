@@ -14,7 +14,10 @@ export interface LayoutColecao {
   /** Nome exibido (ex.: "29/05/2026 — lote-maio.pdf") */
   nome: string
   fileName: string
+  /** Cache local; na nuvem o PDF fica em storagePath */
   dataBase64: string
+  /** Caminho no bucket layout-pdfs (Supabase Storage) */
+  storagePath?: string
   pageCount: number
   createdAt: string
 }
@@ -88,7 +91,11 @@ export function colecoesForMarcaTipo(
 }
 
 export function getColecaoPdf(colecao: LayoutColecao | undefined): boolean {
-  return Boolean(colecao?.dataBase64 && colecao.pageCount > 0)
+  return Boolean(
+    colecao &&
+      colecao.pageCount > 0 &&
+      (Boolean(colecao.dataBase64) || Boolean(colecao.storagePath))
+  )
 }
 
 /** Garante colecaoId em layouts antigos e cria coleção “modelos existentes” quando necessário */

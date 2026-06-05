@@ -13,6 +13,10 @@ import {
   Layers,
   Pencil,
   Sparkles,
+  Database,
+  HardDrive,
+  Loader2,
+  CloudUpload,
 } from 'lucide-react'
 import { DEMO_LAYOUTS } from '../data/demoLayouts'
 import { useAuth } from '../hooks/useAuth'
@@ -28,16 +32,21 @@ import {
 } from '../utils/layoutCatalog'
 import { LayoutStatusQuickPicker } from '../components/LayoutStatusQuickPicker'
 import { PdfViewerModal } from '../components/PdfViewerModal'
-import { loadLayouts, saveLayouts } from '../utils/layoutStorage'
 import {
   colecoesForMarcaTipo,
   createColecaoFromPdf,
   getColecaoPdf,
-  loadColecoes,
-  migrateLayoutsToColecoes,
-  saveColecoes,
   type LayoutColecao,
 } from '../utils/layoutColecaoStorage'
+import {
+  downloadColecaoPdfBytes,
+  getLayoutsStorageMode,
+  loadLayoutBundle,
+  pushLocalLayoutsToCloud,
+  removeColecaoFromCloud,
+  removeLayoutFromCloud,
+  syncLayoutBundle,
+} from '../services/layoutCloudService'
 import { base64ToUint8Array, extractPdfPage, fileToBase64, getPdfPageCount } from '../utils/pdfUtils'
 
 function corDotClass(cor: string): string {
@@ -89,17 +98,15 @@ const DEFAULT_LAYOUTS: Layout[] = [
 
 function Layouts() {
   const { isAdmin, isFuncionario } = useAuth()
+  const storageMode = getLayoutsStorageMode()
+  const hydratedRef = useRef(false)
 
-  const [initialData] = useState(() => {
-    const stored = loadLayouts()
-    const baseLayouts = stored.length > 0 ? stored : DEFAULT_LAYOUTS
-    const baseColecoes = loadColecoes()
-    return migrateLayoutsToColecoes(baseLayouts, baseColecoes)
-  })
-
-  const [layouts, setLayouts] = useState<Layout[]>(initialData.layouts)
-  const [colecoes, setColecoes] = useState<LayoutColecao[]>(initialData.colecoes)
+  const [layouts, setLayouts] = useState<Layout[]>([])
+  const [colecoes, setColecoes] = useState<LayoutColecao[]>([])
   const [layoutCatalog, setLayoutCatalog] = useState(() => loadLayoutCatalog())
+  const [cloudLoading, setCloudLoading] = useState(storageMode === 'database')
+  const [syncing, setSyncing] = useState(false)
+  const [syncError, setSyncError] = useState<string | null>(null)
   const [newMarcaName, setNewMarcaName] = useState('')
   const [newTipoLabel, setNewTipoLabel] = useState('')
   const [catalogError, setCatalogError] = useState<string | null>(null)
@@ -143,12 +150,35 @@ function Layouts() {
   })
 
   useEffect(() => {
-    saveLayouts(layouts)
-  }, [layouts])
+    let cancelled = false
+    void loadLayoutBundle().then(bundle => {
+      if (cancelled) return
+      const useDefaults =
+        bundle.layouts.length === 0 &&
+        bundle.colecoes.length === 0 &&
+        storageMode === 'local'
+      setLayouts(useDefaults ? DEFAULT_LAYOUTS : bundle.layouts)
+      setColecoes(bundle.colecoes)
+      setLayoutCatalog(bundle.catalog)
+      setCloudLoading(false)
+      hydratedRef.current = true
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [storageMode])
 
   useEffect(() => {
-    saveColecoes(colecoes)
-  }, [colecoes])
+    if (!hydratedRef.current) return
+    const timer = window.setTimeout(() => {
+      setSyncing(true)
+      void syncLayoutBundle({ layouts, colecoes, catalog: layoutCatalog })
+        .then(() => setSyncError(null))
+        .catch(e => setSyncError(e instanceof Error ? e.message : 'Erro ao sincronizar'))
+        .finally(() => setSyncing(false))
+    }, 700)
+    return () => window.clearTimeout(timer)
+  }, [layouts, colecoes, layoutCatalog])
 
   const colecoesDoTipo = useMemo(() => {
     if (marcaFilter === 'todas' || !tipoFilter) return []
@@ -267,7 +297,8 @@ function Layouts() {
     setPdfViewer({
       title: `${layout.nome} — Página ${layout.pdfPage}`,
       loadPdf: async () => {
-        const bytes = base64ToUint8Array(col.dataBase64)
+        const bytes = await downloadColecaoPdfBytes(col)
+        if (!bytes) return null
         return extractPdfPage(bytes, layout.pdfPage! - 1)
       },
     })
@@ -277,7 +308,7 @@ function Layouts() {
     if (!getColecaoPdf(col)) return
     setPdfViewer({
       title: `${col.nome} — PDF completo`,
-      loadPdf: async () => base64ToUint8Array(col.dataBase64),
+      loadPdf: async () => downloadColecaoPdfBytes(col),
     })
   }
 
@@ -357,6 +388,7 @@ function Layouts() {
     setColecoes(prev => prev.filter(c => c.id !== id))
     setLayouts(prev => prev.filter(l => l.colecaoId !== id))
     if (colecaoFilter === id) setColecaoFilter(null)
+    void removeColecaoFromCloud(id, col?.storagePath)
   }
 
   const openRenameColecao = (id: string) => {
@@ -511,7 +543,24 @@ function Layouts() {
   const deleteLayout = (id: string) => {
     if (confirm('Tem certeza que deseja excluir este modelo?')) {
       setLayouts(layouts.filter(l => l.id !== id))
+      void removeLayoutFromCloud(id)
     }
+  }
+
+  const forceCloudPush = async () => {
+    setSyncing(true)
+    const result = await pushLocalLayoutsToCloud()
+    setSyncing(false)
+    if (!result.ok) {
+      setSyncError(result.message)
+      return
+    }
+    setSyncError(null)
+    const bundle = await loadLayoutBundle()
+    setLayouts(bundle.layouts)
+    setColecoes(bundle.colecoes)
+    setLayoutCatalog(bundle.catalog)
+    alert(result.message)
   }
 
   const setLayoutStatus = (id: string, status: Layout['status']) => {
@@ -543,9 +592,35 @@ function Layouts() {
                 ? 'Consulte layouts e PDFs — busque por marca, tipo, coleção e cor.'
                 : 'Cada PDF vira uma coleção nova (não apaga a anterior) → modelos por página.'}
             </p>
+            <div className="flex flex-wrap items-center gap-2 mt-2 text-xs">
+              {storageMode === 'database' ? (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-900/40 text-emerald-200 border border-emerald-700/40">
+                  <Database size={14} />
+                  Nuvem
+                  {syncing && <Loader2 size={12} className="animate-spin" />}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-900/40 text-amber-200 border border-amber-700/40">
+                  <HardDrive size={14} />
+                  Local
+                </span>
+              )}
+            </div>
           </div>
           {isAdmin && (
             <div className="flex gap-2 shrink-0">
+              {storageMode === 'database' && (
+                <button
+                  type="button"
+                  onClick={() => void forceCloudPush()}
+                  disabled={syncing || cloudLoading}
+                  className="bg-emerald-800 px-3 py-2 rounded-lg text-white hover:bg-emerald-700 flex items-center gap-2 text-sm disabled:opacity-50"
+                  title="Enviar layouts e PDFs deste aparelho para a nuvem"
+                >
+                  <CloudUpload size={18} />
+                  <span className="hidden sm:inline">Enviar nuvem</span>
+                </button>
+              )}
               <button
                 onClick={loadDemoExamples}
                 className="bg-gray-700 px-3 py-2 rounded-lg text-white hover:bg-gray-600 flex items-center gap-2 text-sm"
@@ -569,7 +644,21 @@ function Layouts() {
       </header>
 
       <div className="page-body">
-        {isAdmin && (
+        {cloudLoading && (
+          <div className="flex items-center justify-center gap-2 text-gray-400 py-12">
+            <Loader2 className="animate-spin" size={24} />
+            Carregando layouts da nuvem…
+          </div>
+        )}
+
+        {!cloudLoading && syncError && (
+          <div className="bg-red-900/30 border border-red-700/50 rounded-xl p-3 mb-4 text-sm text-red-200">
+            Sincronização: {syncError}. Verifique se rodou <code className="text-red-100">layouts_cloud.sql</code> no
+            Supabase e se está logado.
+          </div>
+        )}
+
+        {!cloudLoading && isAdmin && (
           <div className="bg-amber-900/20 border border-amber-700/40 rounded-xl p-3 mb-4 text-sm text-amber-100/90">
             <strong>Como separar cada cor:</strong> o sistema consegue separar automaticamente quando{' '}
             <strong>cada cor/modelo está em uma página diferente</strong> do PDF. Se várias cores estão na mesma
@@ -577,6 +666,8 @@ function Layouts() {
           </div>
         )}
 
+        {!cloudLoading && (
+        <>
         <div className="bg-gray-800 rounded-xl border border-gray-700 p-3 mb-4">
           <div className="flex items-center gap-2 text-xs text-gray-300 mb-3">
             <BadgeCheck size={16} className="text-emerald-400 shrink-0" />
@@ -957,6 +1048,8 @@ function Layouts() {
               </div>
             )}
           </>
+        )}
+        </>
         )}
       </div>
 
