@@ -1,6 +1,7 @@
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase'
 import type { AuthSession } from '../types/auth'
 import { loginToAuthEmail, resolveAuthEmail } from '../utils/authEmail'
+import { pinToSupabasePassword } from '../utils/pinAuth'
 import type { SystemUser } from '../data/users'
 import type { UserRole } from '../types/auth'
 
@@ -152,7 +153,7 @@ export async function signInFuncionarioByLegacyId(
   const email = loginToAuthEmail(row.login, 'funcionario')
   const { data, error: signError } = await supabase.auth.signInWithPassword({
     email,
-    password: pin.trim(),
+    password: pinToSupabasePassword(pin.trim()),
   })
 
   if (signError) {
@@ -222,7 +223,7 @@ export async function adminUpdatePasswordCloud(
   }
 
   const { data, error } = await supabase.functions.invoke('admin-update-password', {
-    body: { targetAuthId, newPassword },
+    body: { targetAuthId, newPassword: pinToSupabasePassword(newPassword) },
   })
 
   if (error) {

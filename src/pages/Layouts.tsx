@@ -47,6 +47,7 @@ import {
   removeLayoutFromCloud,
   syncLayoutBundle,
 } from '../services/layoutCloudService'
+import { getCloudSetupHint } from '../lib/supabase'
 import { base64ToUint8Array, extractPdfPage, fileToBase64, getPdfPageCount } from '../utils/pdfUtils'
 
 function corDotClass(cor: string): string {
@@ -600,9 +601,12 @@ function Layouts() {
                   {syncing && <Loader2 size={12} className="animate-spin" />}
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-900/40 text-amber-200 border border-amber-700/40">
-                  <HardDrive size={14} />
-                  Local
+                <span className="inline-flex flex-col gap-1">
+                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-900/40 text-amber-200 border border-amber-700/40">
+                    <HardDrive size={14} />
+                    Local
+                  </span>
+                  <span className="text-amber-400/80 max-w-xs leading-snug">{getCloudSetupHint()}</span>
                 </span>
               )}
             </div>

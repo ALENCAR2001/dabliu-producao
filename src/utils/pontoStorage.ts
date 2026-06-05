@@ -2,7 +2,10 @@ import type { DayPunch } from '../types/ponto'
 import { punchDayKey } from './calendar'
 import { safeSetItem } from './safeStorage'
 
-const PONTO_KEY = 'dabliu-ponto-v1'
+export const PONTO_STORAGE_KEY = 'dabliu-ponto-v1'
+const PONTO_KEY = PONTO_STORAGE_KEY
+
+export const PONTO_CHANGED_EVENT = 'dabliu:ponto-changed'
 
 export function loadPonto(): DayPunch[] {
   try {
@@ -14,11 +17,14 @@ export function loadPonto(): DayPunch[] {
   }
 }
 
-export function savePonto(entries: DayPunch[]): boolean {
+export function savePonto(entries: DayPunch[], options?: { silent?: boolean }): boolean {
   const result = safeSetItem(PONTO_KEY, JSON.stringify(entries))
   if (!result.ok) {
     window.alert(result.message)
     return false
+  }
+  if (!options?.silent) {
+    window.dispatchEvent(new CustomEvent(PONTO_CHANGED_EVENT))
   }
   return true
 }

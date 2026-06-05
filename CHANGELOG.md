@@ -193,7 +193,16 @@ Log **enumerado** de alterações relevantes para triagem de bugs. Ao reportar u
 
 ## Próximo ID sugerido
 
-`CHG-021` — usar na próxima alteração documentada.
+### [CHG-021] — Nuvem: PIN 4 dígitos, ponto sincronizado, selos Local/Nuvem
+
+| Campo | Valor |
+|-------|--------|
+| **Escopo** | Auth nuvem + ponto + admin PINs |
+| **Arquivos principais** | `src/utils/pinAuth.ts`, `scripts/seed-supabase-auth.mjs`, `src/services/authService.ts`, `src/pages/PontoAdmin.tsx`, `src/pages/Ponto.tsx`, `src/components/admin/UsuariosAdminSection.tsx` |
+| **Comportamento** | PIN 1007 convertido para Supabase (6 chars); seed de equipe; auto-refresh do ponto; PINs padrão visíveis no admin. |
+| **Riscos de regressão** | Vercel precisa redeploy após push; rodar `npm run seed:auth` após mudança de equipe. |
+
+`CHG-022` — usar na próxima alteração documentada.
 
 ---
 

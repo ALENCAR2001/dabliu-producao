@@ -2,7 +2,7 @@ import { getSupabase, isSupabaseConfigured } from '../lib/supabase'
 import type { DayPunch } from '../types/ponto'
 import { combineDateTimeLocal, isValidTime24, punchDayKey, toLocalYMD } from '../utils/calendar'
 import { isPontoDiaEditavelFuncionario, mensagemDiaNaoEditavel } from '../utils/pontoRules'
-import { loadPonto, upsertPonto } from '../utils/pontoStorage'
+import { loadPonto, savePonto, upsertPonto } from '../utils/pontoStorage'
 
 type TimePunchRow = {
   id: string
@@ -29,6 +29,13 @@ function filterByMonth(entries: DayPunch[], year: number, month: number): DayPun
   return entries.filter(e => e.date.startsWith(prefix))
 }
 
+/** Mantém cache local alinhado com o que veio da nuvem (meses fora do filtro permanecem). */
+function mergeCloudIntoLocalCache(cloudMonth: DayPunch[], year: number, month: number): void {
+  const prefix = `${year}-${String(month + 1).padStart(2, '0')}`
+  const rest = loadPonto().filter(e => !e.date.startsWith(prefix))
+  savePonto([...rest, ...cloudMonth], { silent: true })
+}
+
 export function getStorageMode(): 'database' | 'local' {
   return isSupabaseConfigured() ? 'database' : 'local'
 }
@@ -51,7 +58,9 @@ export async function listPontoMonth(year: number, month: number, userId?: strin
 
     const { data, error } = await q
     if (error) throw new Error(error.message)
-    return (data as TimePunchRow[]).map(rowToPunch)
+    const punches = (data as TimePunchRow[]).map(rowToPunch)
+    mergeCloudIntoLocalCache(punches, year, month)
+    return punches
   }
 
   let all = loadPonto()
@@ -80,11 +89,29 @@ async function savePunch(punch: DayPunch): Promise<DayPunch> {
       .single()
 
     if (error) throw new Error(error.message)
-    return rowToPunch(data as TimePunchRow)
+    const saved = rowToPunch(data as TimePunchRow)
+    upsertPonto(saved)
+    return saved
   }
 
   upsertPonto(punch)
   return punch
+}
+
+/** Envia registros antigos do navegador para o Supabase (PC/celular com dados locais). */
+export async function migrateLocalPontoToDatabase(): Promise<number> {
+  const supabase = getSupabase()
+  if (!supabase) throw new Error('Supabase não configurado')
+
+  const local = loadPonto()
+  if (local.length === 0) return 0
+
+  let count = 0
+  for (const p of local) {
+    await savePunch(p)
+    count += 1
+  }
+  return count
 }
 
 export async function getPunchForDay(userId: string, date: string): Promise<DayPunch | null> {

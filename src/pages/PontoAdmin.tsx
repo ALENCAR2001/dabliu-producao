@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, Download, Timer, Users } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CloudUpload, Database, Download, HardDrive, Timer, Users } from 'lucide-react'
 import { listFuncionariosAsync } from '../services/userService'
 import { MonthCalendarGrid } from '../components/MonthCalendarGrid'
 import { formatTimeBR, monthLabel } from '../utils/calendar'
-import { listPontoMonth } from '../services/pontoService'
+import { getStorageMode, listPontoMonth, migrateLocalPontoToDatabase } from '../services/pontoService'
+import { loadPonto, PONTO_CHANGED_EVENT, PONTO_STORAGE_KEY } from '../utils/pontoStorage'
 import { exportPontoCsv } from '../utils/exportRelatorios'
 import type { DayPunch } from '../types/ponto'
 import { formatDuracaoHumana, overtimeMinutesDay, totalOvertimeMinutes } from '../utils/pontoOvertime'
@@ -16,6 +17,9 @@ function PontoAdmin() {
   const [selectedUserId, setSelectedUserId] = useState<string>('todos')
   const [punches, setPunches] = useState<DayPunch[]>([])
   const [loading, setLoading] = useState(false)
+  const [migrating, setMigrating] = useState(false)
+  const [lastSync, setLastSync] = useState<Date | null>(null)
+  const storageMode = getStorageMode()
 
   useEffect(() => {
     void listFuncionariosAsync().then(list => {
@@ -24,13 +28,14 @@ function PontoAdmin() {
   }, [])
 
   /** Sempre o mês inteiro (todos os funcionários) para os cards e para filtrar na UI. */
-  const refresh = useCallback(async () => {
-    setLoading(true)
+  const refresh = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const list = await listPontoMonth(year, month)
       setPunches(list)
+      setLastSync(new Date())
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [year, month])
 
@@ -44,6 +49,47 @@ function PontoAdmin() {
       cancelled = true
     }
   }, [refresh])
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      void refresh(true)
+    }, 8000)
+    return () => window.clearInterval(id)
+  }, [refresh])
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refresh(true)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [refresh])
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === PONTO_STORAGE_KEY) void refresh(true)
+    }
+    const onChanged = () => void refresh(true)
+    window.addEventListener('storage', onStorage)
+    window.addEventListener(PONTO_CHANGED_EVENT, onChanged as EventListener)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener(PONTO_CHANGED_EVENT, onChanged as EventListener)
+    }
+  }, [refresh])
+
+  const migrarLocal = async () => {
+    setMigrating(true)
+    try {
+      const n = await migrateLocalPontoToDatabase()
+      await refresh(true)
+      window.alert(n > 0 ? `${n} registro(s) enviado(s) para a nuvem.` : 'Nada no armazenamento local para enviar.')
+    } catch (e) {
+      window.alert(e instanceof Error ? e.message : 'Erro ao enviar para a nuvem.')
+    } finally {
+      setMigrating(false)
+    }
+  }
 
   const prevMonth = () => {
     if (month === 0) {
@@ -100,8 +146,41 @@ function PontoAdmin() {
   return (
     <div>
       <header className="page-header">
-        <h1 className="text-white text-xl font-bold">Ponto — Administrador</h1>
-        <p className="text-gray-400 text-xs mt-0.5">Acompanhe entrada e saída de todos os funcionários</p>
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <h1 className="text-white text-xl font-bold">Ponto — Administrador</h1>
+            <p className="text-gray-400 text-xs mt-0.5">Acompanhe entrada e saída de todos os funcionários</p>
+            {lastSync && (
+              <p className="text-gray-600 text-[10px] mt-1">
+                Atualizado {lastSync.toLocaleTimeString('pt-BR')}
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs shrink-0">
+            {storageMode === 'database' ? (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-emerald-900/40 text-emerald-200 border border-emerald-700/40">
+                <Database size={14} />
+                Nuvem
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-amber-900/40 text-amber-200 border border-amber-700/40">
+                <HardDrive size={14} />
+                Local (não sincroniza)
+              </span>
+            )}
+            {storageMode === 'database' && loadPonto().length > 0 && (
+              <button
+                type="button"
+                disabled={migrating}
+                onClick={() => void migrarLocal()}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-800 hover:bg-amber-700 disabled:opacity-60 text-amber-50 text-xs"
+              >
+                <CloudUpload size={14} />
+                {migrating ? 'Enviando…' : 'Enviar local → nuvem'}
+              </button>
+            )}
+          </div>
+        </div>
       </header>
 
       <div className="page-body space-y-4 max-w-5xl">

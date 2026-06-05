@@ -7,6 +7,15 @@ export function isSupabaseConfigured(): boolean {
   return Boolean(url && anonKey && url.length > 0 && anonKey.length > 0)
 }
 
+/** Mensagem curta quando o selo aparece como Local. */
+export function getCloudSetupHint(): string {
+  if (isSupabaseConfigured()) return ''
+  if (import.meta.env.DEV) {
+    return 'Preencha VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY no .env e reinicie npm run dev.'
+  }
+  return 'Na Vercel: Settings → Environment Variables (VITE_SUPABASE_*) → Redeploy.'
+}
+
 let client: SupabaseClient | null = null
 
 export function getSupabase(): SupabaseClient | null {

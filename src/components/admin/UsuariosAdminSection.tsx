@@ -18,7 +18,8 @@ function printPinsSheet(funcionarios: SystemUser[], revealed: Record<string, str
     `Gerado em ${new Date().toLocaleString('pt-BR')}`,
     '',
     ...funcionarios.map(f => {
-      const pin = revealed[f.id] ?? f.password ?? '(definido na nuvem — gere um novo PIN para imprimir)'
+      const pin =
+        revealed[f.id] ?? f.password ?? getDefaultPin(f.id) ?? '(rode npm run seed:auth no PC)'
       return `${f.nome}: PIN ${pin}`
     }),
     '',
@@ -67,7 +68,16 @@ export function UsuariosAdminSection() {
   const pinDisplay = (f: SystemUser) => {
     if (revealedPins[f.id]) return revealedPins[f.id]
     if (!cloud && f.password) return f.password
-    return cloud ? '••••' : '—'
+    const def = getDefaultPin(f.id)
+    if (cloud && def) return def
+    return '—'
+  }
+
+  const pinCaption = (f: SystemUser) => {
+    if (revealedPins[f.id]) return 'definido agora'
+    if (!cloud && f.password) return ''
+    if (cloud) return 'padrão (após seed)'
+    return ''
   }
 
   const salvarPin = async (userId: string) => {
@@ -129,6 +139,14 @@ export function UsuariosAdminSection() {
               ? `Login na nuvem (Supabase). E-mails: login@${getAuthEmailDomain()}`
               : 'Cada funcionário entra tocando no nome e digitando o PIN.'}
           </p>
+          {cloud && (
+            <p className="text-amber-300/90 text-xs mt-2 leading-relaxed">
+              Na nuvem o PIN fica oculto no servidor — abaixo aparecem os <strong className="text-amber-200">PINs
+              padrão</strong> (1001, 1002…). Se o celular disser PIN errado, no PC rode{' '}
+              <code className="text-amber-100 bg-amber-950/50 px-1 rounded">npm run seed:auth</code> para
+              redefinir todos.
+            </p>
+          )}
         </div>
         <button
           type="button"
@@ -203,9 +221,14 @@ export function UsuariosAdminSection() {
                   </>
                 ) : (
                   <>
-                    <span className="text-emerald-400 font-mono text-lg font-bold tabular-nums">
-                      PIN {pinDisplay(f)}
-                    </span>
+                    <div className="text-right sm:text-left">
+                      <span className="text-emerald-400 font-mono text-lg font-bold tabular-nums">
+                        PIN {pinDisplay(f)}
+                      </span>
+                      {pinCaption(f) && (
+                        <p className="text-gray-500 text-[10px] mt-0.5">{pinCaption(f)}</p>
+                      )}
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
@@ -266,10 +289,17 @@ export function UsuariosAdminSection() {
       )}
 
       {cloud && (
-        <p className="text-gray-600 text-xs mt-3">
-          Para alterar PINs na nuvem, publique a Edge Function{' '}
-          <code className="text-gray-500">admin-update-password</code> (veja docs/AUTH-SUPABASE.md).
-        </p>
+        <div className="text-gray-500 text-xs mt-3 space-y-1">
+          <p>
+            <strong className="text-gray-400">PIN errado no celular?</strong> No PC, na pasta do projeto:{' '}
+            <code className="text-gray-400">npm run seed:auth</code> — redefine Michael 1001, Kaique 1007, etc.
+          </p>
+          <p>
+            Para <strong className="text-gray-400">Alterar / Novo PIN</strong> pelo app, publique a Edge Function{' '}
+            <code className="text-gray-500">admin-update-password</code> (docs/AUTH-SUPABASE.md). Sem ela, use o seed
+            acima.
+          </p>
+        </div>
       )}
     </div>
   )

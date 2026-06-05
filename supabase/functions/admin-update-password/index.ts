@@ -61,16 +61,19 @@ Deno.serve(async (req) => {
       })
     }
 
-    if (!/^\d{4,6}$/.test(newPassword) && newPassword.length < 6) {
+    const digits = newPassword.replace(/\D/g, '')
+    if (!/^\d{4,6}$/.test(digits) && newPassword.length < 6) {
       return new Response(JSON.stringify({ error: 'PIN/senha inválido' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
+    const authPassword = digits.length > 0 && digits.length < 6 ? digits.padStart(6, '0') : newPassword
+
     const admin = createClient(supabaseUrl, serviceKey)
     const { error: updateError } = await admin.auth.admin.updateUserById(targetAuthId, {
-      password: newPassword,
+      password: authPassword,
     })
 
     if (updateError) {

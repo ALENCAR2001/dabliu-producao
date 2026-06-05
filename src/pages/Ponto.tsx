@@ -6,7 +6,8 @@ import { MonthCalendarGrid } from '../components/MonthCalendarGrid'
 import { TimeInput24 } from '../components/TimeInput24'
 import { validateTimesBeforeSave } from '../utils/pontoTimeValidation'
 import { monthLabel, toLocalYMD, formatTimeBR, isoToTimeInput, nowTimeInput, normalizeTime24 } from '../utils/calendar'
-import { getPunchForDay, listPontoMonth, salvarPontoDoDia } from '../services/pontoService'
+import { getPunchForDay, getStorageMode, listPontoMonth, salvarPontoDoDia } from '../services/pontoService'
+import { PONTO_CHANGED_EVENT, PONTO_STORAGE_KEY } from '../utils/pontoStorage'
 import type { DayPunch } from '../types/ponto'
 import { formatDuracaoHumana, overtimeMinutesDay, totalOvertimeMinutes } from '../utils/pontoOvertime'
 
@@ -39,17 +40,19 @@ function Ponto() {
     [userId]
   )
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (silent = false) => {
     if (!userId) return
-    setLoading(true)
+    if (!silent) setLoading(true)
     try {
       const list = await listPontoMonth(year, month, userId)
       setPunches(list)
       await syncFormFromDate(selectedDate)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [userId, year, month, selectedDate, syncFormFromDate])
+
+  const storageMode = getStorageMode()
 
   useEffect(() => {
     let cancelled = false
@@ -70,6 +73,34 @@ function Ponto() {
     })
     return () => {
       cancelled = true
+    }
+  }, [refresh])
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      void refresh(true)
+    }, 8000)
+    return () => window.clearInterval(id)
+  }, [refresh])
+
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void refresh(true)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [refresh])
+
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === PONTO_STORAGE_KEY) void refresh(true)
+    }
+    const onChanged = () => void refresh(true)
+    window.addEventListener('storage', onStorage)
+    window.addEventListener(PONTO_CHANGED_EVENT, onChanged as EventListener)
+    return () => {
+      window.removeEventListener('storage', onStorage)
+      window.removeEventListener(PONTO_CHANGED_EVENT, onChanged as EventListener)
     }
   }, [refresh])
 
@@ -149,6 +180,9 @@ function Ponto() {
         <h1 className="text-white text-xl font-bold">Meu ponto</h1>
         <p className="text-gray-400 text-xs mt-0.5">
           Registre apenas o dia de hoje · formato 24h (ex: 18:00)
+          {storageMode === 'local' && (
+            <span className="block text-amber-400/90 mt-0.5">Modo local — o ponto não sincroniza com outros aparelhos.</span>
+          )}
         </p>
       </header>
 

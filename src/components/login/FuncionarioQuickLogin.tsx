@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowLeft, LogIn, User } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
-import { listFuncionariosAsync } from '../../services/userService'
+import { isCloudUserMode, listFuncionariosAsync } from '../../services/userService'
 import { cacheFuncionariosRoster, getLastFuncionarioId, loadCachedFuncionariosRoster } from '../../utils/usersStorage'
 import type { SystemUser } from '../../data/users'
 import { BrandLogo } from '../BrandLogo'
@@ -99,9 +99,15 @@ export function FuncionarioQuickLogin({ onBack }: FuncionarioQuickLoginProps) {
               </div>
 
               {error && (
-                <p className="text-red-300 text-sm text-center bg-red-900/40 border border-red-700/50 rounded-xl p-3">
-                  {error}
-                </p>
+                <div className="text-red-300 text-sm text-center bg-red-900/40 border border-red-700/50 rounded-xl p-3 space-y-1">
+                  <p>{error}</p>
+                  {isCloudUserMode() && error.includes('PIN incorreto') && (
+                    <p className="text-red-200/80 text-xs">
+                      Peça ao admin para rodar <span className="font-mono">npm run seed:auth</span> no PC e usar o PIN
+                      padrão (ex.: Kaique 1007).
+                    </p>
+                  )}
+                </div>
               )}
 
               <button

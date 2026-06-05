@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "seed:auth": "node scripts/seed-supabase-auth.mjs",
+    "reset:pins": "node scripts/seed-supabase-auth.mjs",
     "setup:cloud": "node scripts/setup-cloud.mjs",
     "configurar": "node scripts/configurar-supabase.mjs",
     "logo:prepare": "node scripts/prepare-brand-logo.mjs"

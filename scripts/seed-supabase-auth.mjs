@@ -11,6 +11,7 @@ import { createClient } from '@supabase/supabase-js'
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { pinToSupabasePassword } from './pin-auth.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const root = resolve(__dirname, '..')
@@ -64,15 +65,21 @@ function authEmail(login, role) {
   return `${slug}@${domain}`
 }
 
+function authPassword(member) {
+  if (member.role === 'funcionario') return pinToSupabasePassword(member.password)
+  return member.password
+}
+
 async function upsertUser(member) {
   const email = authEmail(member.login, member.role)
+  const password = authPassword(member)
 
   const { data: list } = await admin.auth.admin.listUsers({ perPage: 1000 })
   const existing = list?.users?.find(u => u.email?.toLowerCase() === email.toLowerCase())
 
   if (existing) {
     const { error } = await admin.auth.admin.updateUserById(existing.id, {
-      password: member.password,
+      password,
       user_metadata: {
         legacy_id: member.legacy_id,
         nome: member.nome,
@@ -97,7 +104,7 @@ async function upsertUser(member) {
 
   const { data, error } = await admin.auth.admin.createUser({
     email,
-    password: member.password,
+    password,
     email_confirm: true,
     user_metadata: {
       legacy_id: member.legacy_id,

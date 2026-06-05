@@ -63,6 +63,13 @@ Entre como **Funcionário** (nome + PIN 1001 para Michael) ou **Admin** (`admin`
 
 Michael 1001 · Hamilton 1002 · Iuri 1003 · Gabriel 1004 · Christian 1005 · Bruno 1006 · Kaique 1007 · David 1008
 
+### PIN errado no celular ou admin não vê PINs?
+
+1. No PC, na pasta `dabliu/`: `npm run seed:auth` (ou `npm run reset:pins`)
+2. Isso recria/atualiza todos os usuários no Supabase com os PINs da tabela acima
+3. No celular, tente de novo (ex.: Kaique → **1007**)
+4. Na Administração → Acessos da equipe, os PINs padrão aparecem listados (modo nuvem)
+
 ---
 
 ## 7. Usar na Vercel (produção)
