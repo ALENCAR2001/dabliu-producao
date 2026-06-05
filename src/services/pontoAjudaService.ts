@@ -18,6 +18,13 @@ type PontoAjudaRow = {
   resolved_at: string | null
 }
 
+function mapPontoAjudaError(message: string): string {
+  if (message.includes('ponto_help_requests')) {
+    return 'O banco ainda não tem a tabela de pedidos de ajuda. Peça ao administrador para rodar o arquivo supabase/ponto_ajuda_cloud.sql no SQL Editor do Supabase.'
+  }
+  return message
+}
+
 function rowToAjuda(r: PontoAjudaRow): PontoAjudaSolicitacao {
   return {
     id: r.id,
@@ -37,7 +44,7 @@ export async function listPontoAjuda(status?: PontoAjudaSolicitacao['status']): 
     let q = supabase.from('ponto_help_requests').select('*').order('created_at', { ascending: false })
     if (status) q = q.eq('status', status)
     const { data, error } = await q
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(mapPontoAjudaError(error.message))
     return ((data ?? []) as PontoAjudaRow[]).map(rowToAjuda)
   }
 
@@ -74,7 +81,7 @@ export async function solicitarPontoAjuda(
       .eq('help_date', date)
       .eq('status', 'pendente')
       .maybeSingle()
-    if (exErr) throw new Error(exErr.message)
+    if (exErr) throw new Error(mapPontoAjudaError(exErr.message))
     if (existing?.id) {
       throw new Error('Já existe um pedido pendente para este dia. Aguarde o administrador.')
     }
@@ -99,7 +106,7 @@ export async function solicitarPontoAjuda(
       created_at: entry.createdAt,
       resolved_at: null,
     })
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(mapPontoAjudaError(error.message))
     return entry
   }
 
@@ -130,7 +137,7 @@ export async function resolverPontoAjuda(id: string): Promise<void> {
       .from('ponto_help_requests')
       .update({ status: 'resolvido', resolved_at: new Date().toISOString() })
       .eq('id', id)
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(mapPontoAjudaError(error.message))
     return
   }
 

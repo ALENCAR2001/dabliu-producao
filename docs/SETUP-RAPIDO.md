@@ -41,7 +41,9 @@ Isso tenta: criar tabelas (se tiver `SUPABASE_DB_URL`), criar usuários e testar
 
 No Supabase: **SQL Editor** → **New query** → cole todo o arquivo `supabase/setup_completo.sql` → **Run**.
 
-Depois rode também `supabase/layouts_cloud.sql` (layouts, PDFs na nuvem).
+Depois rode também:
+- `supabase/layouts_cloud.sql` (layouts, PDFs na nuvem)
+- `supabase/ponto_ajuda_cloud.sql` (pedidos “esqueci de bater ponto”)
 
 Depois rode de novo: `npm run setup:cloud` (só para criar usuários).
 
