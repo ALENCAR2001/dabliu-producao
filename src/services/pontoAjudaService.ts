@@ -1,7 +1,10 @@
 import type { PontoAjudaSolicitacao } from '../types/pontoAjuda'
-import { toLocalYMD } from '../utils/calendar'
+import type { DayPunch } from '../types/ponto'
+import { normalizeTime24, toLocalYMD } from '../utils/calendar'
 import { getSupabase } from '../lib/supabase'
 import { loadPontoAjuda, savePontoAjuda } from '../utils/pontoAjudaStorage'
+import { salvarPontoDoDia } from './pontoService'
+import { validateTimesBeforeSave } from '../utils/pontoTimeValidation'
 
 function newId(): string {
   return `ajuda-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -128,6 +131,43 @@ export async function solicitarPontoAjuda(
   all.push(entry)
   savePontoAjuda(all)
   return entry
+}
+
+/** Registra o horário do dia e só então marca o pedido como resolvido. */
+export async function resolverPontoAjudaComHorario(
+  pedido: PontoAjudaSolicitacao,
+  entradaHora: string,
+  saidaHora?: string
+): Promise<DayPunch> {
+  const entradaNorm = entradaHora.trim() ? normalizeTime24(entradaHora.trim()) : ''
+  const saidaNorm = saidaHora?.trim() ? normalizeTime24(saidaHora.trim()) : ''
+
+  if (entradaNorm === null) {
+    throw new Error('Hora de entrada inválida. Use formato 24h (ex: 08:00).')
+  }
+  if (saidaHora?.trim() && saidaNorm === null) {
+    throw new Error('Hora de saída inválida. Use formato 24h (ex: 18:00).')
+  }
+  if (!entradaNorm && !saidaNorm) {
+    throw new Error('Informe a hora de entrada e/ou de saída trabalhados.')
+  }
+
+  const entradaFinal = entradaNorm || ''
+  const saidaFinal = saidaNorm || ''
+
+  const validationError = validateTimesBeforeSave(entradaFinal, saidaFinal)
+  if (validationError) throw new Error(validationError)
+
+  const punch = await salvarPontoDoDia(
+    pedido.userId,
+    pedido.userNome,
+    pedido.date,
+    entradaFinal || undefined,
+    saidaFinal || undefined,
+    { permitirQualquerDia: true }
+  )
+  await resolverPontoAjuda(pedido.id)
+  return punch
 }
 
 export async function resolverPontoAjuda(id: string): Promise<void> {

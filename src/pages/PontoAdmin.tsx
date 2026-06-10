@@ -184,7 +184,7 @@ function PontoAdmin() {
       </header>
 
       <div className="page-body space-y-4 max-w-5xl">
-        <PontoAjudaAdminPanel />
+        <PontoAjudaAdminPanel onResolved={() => void refresh(true)} />
 
         <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">

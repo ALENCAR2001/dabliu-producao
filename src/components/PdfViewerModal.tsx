@@ -82,7 +82,7 @@ export function PdfViewerModal({ open, title, loadPdf, onClose }: PdfViewerModal
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="modal-sheet-panel max-w-4xl sm:m-4 h-[92dvh] sm:h-[90vh] flex flex-col">
+      <div className="modal-sheet-panel max-w-5xl sm:m-4 h-[92dvh] sm:h-[90vh] flex flex-col">
         <div className="p-3 sm:p-4 border-b border-gray-700 flex justify-between items-center gap-2 shrink-0">
           <h2 className="text-white font-semibold truncate pr-2 text-sm sm:text-base">{title}</h2>
           <div className="flex items-center gap-1 shrink-0">
@@ -109,15 +109,15 @@ export function PdfViewerModal({ open, title, loadPdf, onClose }: PdfViewerModal
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 bg-gray-900 overflow-y-auto overscroll-contain">
+        <div className="flex-1 min-h-0 bg-gray-900 overflow-y-auto overscroll-contain relative">
           {loading && (
-            <div className="h-full min-h-[200px] flex items-center justify-center gap-2 text-gray-400">
+            <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 text-gray-400 bg-gray-900/90">
               <Loader2 className="animate-spin" size={24} />
               Carregando PDF…
             </div>
           )}
 
-          {!loading && error && (
+          {error && !loading && (
             <div className="h-full min-h-[200px] flex flex-col items-center justify-center p-6 text-center text-gray-400 gap-4">
               <p>{error}</p>
               {openUrl && (
@@ -136,7 +136,7 @@ export function PdfViewerModal({ open, title, loadPdf, onClose }: PdfViewerModal
 
           <div
             ref={containerRef}
-            className={`p-2 sm:p-3 ${loading || error ? 'hidden' : 'block'}`}
+            className={`p-2 sm:p-3 min-h-[200px] ${error && !loading ? 'hidden' : 'block'}`}
           />
         </div>
       </div>

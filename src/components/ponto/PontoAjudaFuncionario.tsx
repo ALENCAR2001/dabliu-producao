@@ -59,7 +59,7 @@ export function PontoAjudaFuncionario({ userId, userNome }: PontoAjudaFuncionari
     setOkMsg(null)
     try {
       await solicitarPontoAjuda(userId, userNome, dataYMD, motivo)
-      setOkMsg('Pedido enviado. O administrador verá o pedido dentro do sistema.')
+      setOkMsg('Pedido enviado. O administrador registrará seu horário e marcará como resolvido.')
       setDataBR('')
       setMotivo('')
       // Mantém aberto para a confirmação ficar óbvia
