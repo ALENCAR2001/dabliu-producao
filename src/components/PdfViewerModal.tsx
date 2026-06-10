@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { ExternalLink, Loader2, X } from 'lucide-react'
-import { copyBytes, renderPdfToContainer, shouldUseNativePdfViewer } from '../utils/pdfJsViewer'
+import {
+  copyBytes,
+  isAndroidDevice,
+  renderPdfToContainer,
+  shouldUseNativePdfViewer,
+} from '../utils/pdfJsViewer'
 
 type PdfViewerModalProps = {
   open: boolean
@@ -15,6 +20,7 @@ export function PdfViewerModal({ open, title, loadPdf, onClose }: PdfViewerModal
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const useNativeViewer = shouldUseNativePdfViewer()
+  const isAndroid = isAndroidDevice()
 
   useEffect(() => {
     if (open) return
@@ -98,7 +104,7 @@ export function PdfViewerModal({ open, title, loadPdf, onClose }: PdfViewerModal
                 title="Abrir em nova aba"
               >
                 <ExternalLink size={18} />
-                <span className="hidden sm:inline">Abrir</span>
+                <span>{isAndroid ? 'Abrir PDF' : 'Abrir'}</span>
               </a>
             )}
             <button
@@ -146,12 +152,20 @@ export function PdfViewerModal({ open, title, loadPdf, onClose }: PdfViewerModal
           )}
 
           {!useNativeViewer && (
-            <div
-              ref={containerRef}
-              className={`flex-1 min-h-0 overflow-y-auto overscroll-contain p-2 sm:p-3 ${
-                error && !loading ? 'hidden' : 'block'
-              }`}
-            />
+            <>
+              {isAndroid && !loading && !error && (
+                <p className="shrink-0 px-3 py-2 text-[11px] text-gray-500 border-b border-gray-800">
+                  Role para ver a página inteira. Para zoom com os dedos, toque em{' '}
+                  <span className="text-indigo-300">Abrir PDF</span> no canto superior.
+                </p>
+              )}
+              <div
+                ref={containerRef}
+                className={`flex-1 min-h-0 overflow-y-auto overscroll-contain p-2 sm:p-3 touch-pan-y ${
+                  error && !loading ? 'hidden' : 'block'
+                }`}
+              />
+            </>
           )}
         </div>
       </div>

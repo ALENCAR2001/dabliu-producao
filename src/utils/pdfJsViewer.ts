@@ -9,24 +9,38 @@ function copyBytes(bytes: Uint8Array): Uint8Array {
   return new Uint8Array(bytes)
 }
 
+export function isAndroidDevice(): boolean {
+  return /Android/i.test(navigator.userAgent)
+}
+
 /** Android Chrome não exibe PDF no iframe; demais dispositivos usam visualizador nativo. */
 export function shouldUseNativePdfViewer(): boolean {
-  return !/Android/i.test(navigator.userAgent)
+  return !isAndroidDevice()
 }
 
 function getOutputScale(): number {
-  return Math.min(Math.max(window.devicePixelRatio || 1, 1), 2)
+  const dpr = window.devicePixelRatio || 1
+  return Math.min(Math.max(dpr, 1), 2.5)
 }
 
 function measureContainerWidth(container: HTMLDivElement): number {
   const w = container.clientWidth
   if (w > 0) return Math.max(w - 16, 200)
-  return Math.min(Math.max(window.innerWidth - 48, 280), 960)
+  return Math.min(Math.max(window.innerWidth - 32, 280), 960)
+}
+
+async function waitForContainerLayout(container: HTMLDivElement): Promise<void> {
+  await new Promise<void>(resolve => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  })
+  if (container.clientWidth === 0) {
+    await new Promise<void>(r => setTimeout(r, 80))
+  }
 }
 
 /**
- * Renderiza PDF no canvas preservando proporção original (sem esticar).
- * Escala só para caber na largura — nunca amplia além do tamanho do PDF.
+ * Android: renderiza no canvas com a mesma lógica “ajustar à largura” (FitH) do iPhone.
+ * Escala uniforme nos dois eixos — sem esticar.
  */
 async function renderPdfToContainer(
   container: HTMLDivElement,
@@ -44,6 +58,9 @@ async function renderPdfToContainer(
     pdf = await getDocument({ data: copyBytes(bytes) }).promise
     if (signal.aborted) return
 
+    await waitForContainerLayout(container)
+    if (signal.aborted) return
+
     container.replaceChildren()
     const containerWidth = measureContainerWidth(container)
     const outputScale = getOutputScale()
@@ -53,14 +70,14 @@ async function renderPdfToContainer(
       const page = await pdf.getPage(pageNum)
       const baseViewport = page.getViewport({ scale: 1 })
 
-      // Proporção original: só reduz se não couber; nunca estica/amplia
-      const fitScale = Math.min(containerWidth / baseViewport.width, 1)
+      // Ajustar à largura da tela (proporção preservada — igual FitH no iPhone)
+      const fitScale = containerWidth / baseViewport.width
       const viewport = page.getViewport({ scale: fitScale })
       const cssWidth = Math.floor(viewport.width)
       const cssHeight = Math.floor(viewport.height)
 
       const wrap = document.createElement('div')
-      wrap.className = 'flex justify-center mb-3 last:mb-0 w-full overflow-x-auto'
+      wrap.className = 'flex justify-center mb-3 last:mb-0 w-full'
 
       const canvas = document.createElement('canvas')
       canvas.className = 'rounded-lg shadow-lg bg-white'
