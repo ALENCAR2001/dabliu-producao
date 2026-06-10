@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ExternalLink, Loader2, X } from 'lucide-react'
-import { copyBytes, renderPdfToContainer } from '../utils/pdfJsViewer'
+import { copyBytes, renderPdfToContainer, shouldUseNativePdfViewer } from '../utils/pdfJsViewer'
 
 type PdfViewerModalProps = {
   open: boolean
@@ -14,6 +14,7 @@ export function PdfViewerModal({ open, title, loadPdf, onClose }: PdfViewerModal
   const [openUrl, setOpenUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const useNativeViewer = shouldUseNativePdfViewer()
 
   useEffect(() => {
     if (open) return
@@ -32,7 +33,7 @@ export function PdfViewerModal({ open, title, loadPdf, onClose }: PdfViewerModal
     if (!open) return
 
     const container = containerRef.current
-    if (!container) return
+    if (!container && !useNativeViewer) return
 
     const abort = new AbortController()
     let objectUrl: string | null = null
@@ -40,7 +41,7 @@ export function PdfViewerModal({ open, title, loadPdf, onClose }: PdfViewerModal
     void Promise.resolve().then(async () => {
       setLoading(true)
       setError(null)
-      container.replaceChildren()
+      container?.replaceChildren()
 
       try {
         const bytes = await loadPdf()
@@ -55,7 +56,9 @@ export function PdfViewerModal({ open, title, loadPdf, onClose }: PdfViewerModal
         objectUrl = URL.createObjectURL(blob)
         setOpenUrl(objectUrl)
 
-        await renderPdfToContainer(container, bytes, abort.signal)
+        if (!useNativeViewer && container) {
+          await renderPdfToContainer(container, bytes, abort.signal)
+        }
       } catch {
         if (!abort.signal.aborted) {
           setError('Não foi possível abrir o PDF neste dispositivo.')
@@ -69,7 +72,7 @@ export function PdfViewerModal({ open, title, loadPdf, onClose }: PdfViewerModal
       abort.abort()
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
-  }, [open, loadPdf])
+  }, [open, loadPdf, useNativeViewer])
 
   if (!open) return null
 
@@ -109,7 +112,7 @@ export function PdfViewerModal({ open, title, loadPdf, onClose }: PdfViewerModal
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 bg-gray-900 overflow-y-auto overscroll-contain relative">
+        <div className="flex-1 min-h-0 bg-gray-900 overflow-hidden relative flex flex-col">
           {loading && (
             <div className="absolute inset-0 z-10 flex items-center justify-center gap-2 text-gray-400 bg-gray-900/90">
               <Loader2 className="animate-spin" size={24} />
@@ -134,10 +137,22 @@ export function PdfViewerModal({ open, title, loadPdf, onClose }: PdfViewerModal
             </div>
           )}
 
-          <div
-            ref={containerRef}
-            className={`p-2 sm:p-3 min-h-[200px] ${error && !loading ? 'hidden' : 'block'}`}
-          />
+          {!error && useNativeViewer && openUrl && !loading && (
+            <iframe
+              src={`${openUrl}#view=FitH`}
+              title={title}
+              className="flex-1 w-full min-h-0 border-0 bg-white rounded-b-xl"
+            />
+          )}
+
+          {!useNativeViewer && (
+            <div
+              ref={containerRef}
+              className={`flex-1 min-h-0 overflow-y-auto overscroll-contain p-2 sm:p-3 ${
+                error && !loading ? 'hidden' : 'block'
+              }`}
+            />
+          )}
         </div>
       </div>
     </div>
